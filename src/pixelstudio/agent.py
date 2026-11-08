@@ -11,6 +11,7 @@ from langchain.messages import HumanMessage, SystemMessage, ToolMessage
 from .config import Settings
 from .mcp_client import AsepriteError, AsepriteToolError, payload, text_content
 from .model_client import bind_artist_tools, invoke_model
+from .harness import ExecutionLimitError
 
 
 class AgentError(RuntimeError):
@@ -18,6 +19,10 @@ class AgentError(RuntimeError):
 
 
 class ToolPolicyError(ValueError):
+    pass
+
+
+class ToolLimitError(AgentError, ExecutionLimitError):
     pass
 
 
@@ -83,6 +88,7 @@ class ArtistTools:
         self.schemas = {}
         self.tool_names = {}
         self.definitions = []
+        self.role = "artist"
         for name, tool in mcp.tools.items():
             if name not in ALLOWED_TOOLS:
                 continue
@@ -141,7 +147,7 @@ class ArtistTools:
 
     async def _call(self, name: str, values: dict):
         if self.call_count >= self.max_calls:
-            raise AgentError("작업의 도구 호출 한도에 도달했습니다.")
+            raise ToolLimitError("작업의 도구 호출 한도에 도달했습니다.")
         self.call_count += 1
         # 모델이 문서 ID나 프레임을 생략해도 활성 문서에 의존하지 않습니다.
         arguments = {**values, "sprite": self.sprite}
@@ -153,11 +159,11 @@ class ArtistTools:
         try:
             result = await self.mcp.call(name, arguments)
         except AsepriteToolError as exc:
-            self.trace.append({"tool": name, "sprite": self.sprite, "error": str(exc), "arguments": values})
+            self.trace.append({"role": self.role, "tool": name, "sprite": self.sprite, "error": str(exc), "arguments": values})
             if name in {"draw", "recolor", "palette", "layer"}:
                 self.needs_inspection = True
             raise
-        self.trace.append({"tool": name, "sprite": self.sprite, "data": payload(result)})
+        self.trace.append({"role": self.role, "tool": name, "sprite": self.sprite, "data": payload(result)})
         return result
 
     async def execute(self, alias: str, arguments: str | dict) -> list[dict]:

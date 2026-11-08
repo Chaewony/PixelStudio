@@ -1562,8 +1562,10 @@ dependencies = [
     { name = "jsonschema" },
     { name = "langchain" },
     { name = "langchain-openai" },
+    { name = "langgraph" },
     { name = "mcp" },
     { name = "pillow" },
+    { name = "pydantic" },
     { name = "python-dotenv" },
 ]
 
@@ -1589,8 +1591,10 @@ requires-dist = [
     { name = "langchain-anthropic", marker = "extra == 'anthropic'", specifier = ">=1,<2" },
     { name = "langchain-google-genai", marker = "extra == 'google'", specifier = ">=4,<5" },
     { name = "langchain-openai", specifier = ">=1,<2" },
+    { name = "langgraph", specifier = ">=1.2.20,<2" },
     { name = "mcp", specifier = ">=2,<3" },
     { name = "pillow", specifier = ">=13.0.0" },
+    { name = "pydantic", specifier = ">=2.12,<3" },
     { name = "python-dotenv", specifier = ">=1.2.4" },
 ]
 provides-extras = ["anthropic", "google"]

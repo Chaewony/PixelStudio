@@ -12,8 +12,10 @@ dependencies = [
     "jsonschema>=4.26.0",
     "langchain>=1,<2",
     "langchain-openai>=1,<2",
+    "langgraph>=1.2.20,<2",
     "mcp>=2,<3",
     "pillow>=13.0.0",
+    "pydantic>=2.12,<3",
     "python-dotenv>=1.2.4",
 ]
 

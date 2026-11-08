@@ -32,6 +32,8 @@ class Settings:
     max_rounds: int = 16
     max_tool_calls: int = 32
     max_output_tokens: int = 6000
+    max_model_calls: int = 40
+    max_revisions: int = 2
 
     @classmethod
     def load(cls, root: Path | None = None) -> "Settings":
@@ -65,6 +67,8 @@ class Settings:
             max_rounds=integer("MAX_AGENT_ROUNDS", 16),
             max_tool_calls=integer("MAX_TOOL_CALLS", 32),
             max_output_tokens=integer("MAX_OUTPUT_TOKENS", 6000),
+            max_model_calls=integer("MAX_MODEL_CALLS", 40),
+            max_revisions=integer("MAX_REVISIONS", 2, minimum=0),
         )
 
     def require_api(self) -> None:

@@ -7,10 +7,13 @@ from langchain.chat_models import init_chat_model
 from langchain.messages import AIMessage, HumanMessage
 
 from .config import ConfigurationError, Settings
+from .harness import ExecutionLimitError
 
 
 class APIRequestError(RuntimeError):
-    pass
+    def __init__(self, message: str, *, status_code=None, code=None):
+        super().__init__(message)
+        self.status_code, self.code = status_code, code
 
 
 def create_model(settings: Settings):
@@ -60,11 +63,26 @@ async def invoke_model(model, messages) -> AIMessage:
             response = await model.ainvoke(messages)
     except TimeoutError:
         raise APIRequestError("모델 API 응답 시간이 초과되었습니다.") from None
+    except ExecutionLimitError:
+        raise
     except Exception as exc:
         # 공급자 예외 원문에는 요청 내용이 들어갈 수 있으므로 그대로 노출하지 않습니다.
         status = getattr(exc, "status_code", None) or getattr(exc, "code", None)
         suffix = f" (HTTP {status})" if isinstance(status, int) else ""
-        raise APIRequestError(f"모델 API 요청 실패{suffix}. API 키·모델 권한·한도·네트워크를 확인해주세요.") from None
+        body = getattr(exc, "body", None)
+        error = body.get("error", body) if isinstance(body, dict) else {}
+        error = error if isinstance(error, dict) else {}
+        code = error.get("code") or getattr(exc, "code", None)
+        known_codes = {"credit_balance_exhausted", "insufficient_quota", "project_spend_limit_exceeded",
+                       "organization_usage_limit_exceeded", "rate_limit_exceeded", "slow_down"}
+        code = code if isinstance(code, str) and code in known_codes else None
+        if code in known_codes - {"rate_limit_exceeded", "slow_down"}:
+            message = "모델 API 잔액 또는 사용 한도가 소진됐습니다. 해당 공급자의 결제·한도를 확인해주세요."
+        elif status == 429:
+            message = "모델 API가 HTTP 429로 요청을 거절했습니다. 요청 속도 제한과 결제·사용 한도를 확인해주세요."
+        else:
+            message = f"모델 API 요청 실패{suffix}. API 키·모델 권한·한도·네트워크를 확인해주세요."
+        raise APIRequestError(message, status_code=status, code=code) from None
     if not isinstance(response, AIMessage):
         raise APIRequestError("모델이 지원하지 않는 응답 형식을 반환했습니다.")
     metadata = response.response_metadata

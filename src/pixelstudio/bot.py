@@ -8,7 +8,9 @@ from discord import app_commands
 
 from .artist import create_sprite
 from .config import Settings
-from .mcp_client import get_status
+from .harness import ExecutionLimitError
+from .mcp_client import AsepriteError, get_status
+from .model_client import APIRequestError
 
 
 logger = logging.getLogger(__name__)
@@ -77,12 +79,24 @@ def create_bot(settings: Settings) -> discord.Client:
             return
         async with client.job_lock:
             await interaction.response.defer(thinking=True)
+            display_prompt = discord.utils.escape_mentions(discord.utils.escape_markdown(prompt))
+
+            async def show_progress(stage: str):
+                await interaction.edit_original_response(
+                    content=f"**요청 내용**\n{display_prompt}\n\n진행: {stage}")
+
             try:
-                job_id, png, preview, source = await create_sprite(prompt, settings)
+                result = await create_sprite(prompt, settings, on_progress=show_progress)
+                job_id, png, preview, source = result
             except TimeoutError:
                 await interaction.edit_original_response(content=(
                     "제작 시간이 초과되었습니다. 재요청 전에 Aseprite에 남은 작업을 확인해주세요."
                 ))
+                return
+            except (APIRequestError, ExecutionLimitError, AsepriteError) as exc:
+                logger.warning("픽셀아트 제작 중단: %s", exc)
+                await interaction.edit_original_response(content=(
+                    f"**요청 내용**\n{display_prompt}\n\n제작 중단: {exc}"))
                 return
             except Exception:
                 logger.exception("픽셀아트 제작 실패")
@@ -97,11 +111,20 @@ def create_bot(settings: Settings) -> discord.Client:
                 if any(path.stat().st_size > interaction.filesize_limit for path in paths):
                     raise ValueError("Discord 첨부 파일 한도를 초과했습니다.")
                 files = [discord.File(path, filename=path.name) for path in paths]
-                display_prompt = discord.utils.escape_mentions(discord.utils.escape_markdown(prompt))
+                status = getattr(result, "status", "completed")
+                title = "작업 완료 · 검토 통과" if status == "completed" else "결과 저장 · 검토 필요"
+                revisions = getattr(result, "revisions", 0)
+                pending = getattr(result, "unresolved", [])
+                notes = ""
+                if pending:
+                    descriptions = [item["evidence"][:100] for item in pending[:4]]
+                    notes = "\n\n미해결 사항:\n" + "\n".join(
+                        "- " + discord.utils.escape_mentions(discord.utils.escape_markdown(text))
+                        for text in descriptions)
                 await interaction.edit_original_response(
-                    content=(f"작업 완료 · `{job_id}`\n"
+                    content=(f"{title} · `{job_id}` · 수정 {revisions}회\n"
                              f"**요청 내용**\n{display_prompt}\n\n"
-                             "32×32 원본 PNG · 8배 미리보기 · Aseprite 원본"),
+                             f"32×32 원본 PNG · 8배 미리보기 · Aseprite 원본{notes}"),
                     attachments=files,
                 )
             except (discord.HTTPException, OSError, ValueError):

@@ -108,6 +108,28 @@ class AsepriteMCP:
             )
         return state
 
+    async def wait_until_ready(self, timeout: float = 10) -> dict:
+        """확장의 시작·재연결만 기다립니다. 문서 편집은 재시도하지 않습니다."""
+        state = {}
+        try:
+            async with asyncio.timeout(timeout):
+                while True:
+                    state = await self.preflight()
+                    if state.get("mode") != "live":
+                        raise AsepriteError("Aseprite가 live 모드가 아닙니다. 자동으로 모드를 변경하지 않습니다.")
+                    if state.get("ready"):
+                        return state
+                    await asyncio.sleep(0.5)
+        except TimeoutError:
+            if not state.get("bridgeConnected"):
+                message = "Aseprite MCP 브리지에 연결되지 않았습니다. PC 터미널의 MCP 실행 오류를 확인해주세요."
+            elif not state.get("pluginConnected"):
+                message = ("Aseprite 확장이 브리지에 연결되지 않았습니다. 열린 작업을 저장한 뒤 "
+                           "Aseprite를 완전히 종료하고 다시 실행해주세요. 확장의 연결 권한 창이 나오면 허용해주세요.")
+            else:
+                message = "Aseprite 확장 응답 준비 시간이 초과됐습니다. Aseprite의 대화상자와 실행 상태를 확인해주세요."
+            raise AsepriteError(message) from None
+
     async def craft_notes(self) -> str:
         notes = []
         for uri in ("skill://draw", "skill://palette", "rules://index"):

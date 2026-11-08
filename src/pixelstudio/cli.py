@@ -10,6 +10,7 @@ from .model_client import APIRequestError, check_api
 from .artifacts import ArtifactError
 from .mcp_client import AsepriteError
 from .agent import AgentError
+from .harness import ExecutionLimitError
 
 
 async def run(args) -> None:
@@ -26,8 +27,11 @@ async def run(args) -> None:
         print(f"테스트 완료: {artifacts.directory}")
     elif args.command == "draw":
         from .artist import create_sprite
-        job_id, png, _preview, _source = await create_sprite(args.prompt, settings)
-        print(f"제작 완료: {job_id}\n{png.parent}")
+        result = await create_sprite(args.prompt, settings)
+        label = "제작 완료 · 검토 통과" if result.status == "completed" else "결과 저장 · 검토 필요"
+        print(f"{label}: {result.job_id}\n{result.png.parent}")
+        for issue in result.unresolved:
+            print(f"- {issue['evidence']}")
 
 
 def main() -> None:
@@ -48,7 +52,7 @@ def main() -> None:
             run_bot()
             return
         asyncio.run(run(args))
-    except (ConfigurationError, APIRequestError, AsepriteError, ArtifactError, AgentError) as exc:
+    except (ConfigurationError, APIRequestError, AsepriteError, ArtifactError, AgentError, ExecutionLimitError) as exc:
         parser.exit(1, f"오류: {exc}\n")
     except TimeoutError:
         parser.exit(1, "오류: 작업 시간이 초과되었습니다. Aseprite에 남은 문서를 확인해주세요.\n")

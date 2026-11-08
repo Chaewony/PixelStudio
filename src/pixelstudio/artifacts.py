@@ -13,6 +13,10 @@ class ArtifactError(RuntimeError):
     pass
 
 
+class ImageContentError(ArtifactError):
+    """파일은 정상이나 빈 그림·불투명 배경 등 수정 가능한 내용 오류."""
+
+
 @dataclass(frozen=True)
 class Artifacts:
     job_id: str
@@ -42,7 +46,7 @@ class Artifacts:
             json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
         )
 
-    def validate_and_preview(self) -> None:
+    def validate_and_preview(self, *, check_content: bool = True) -> None:
         for path in (self.png, self.source):
             if not path.is_file() or path.stat().st_size == 0:
                 raise ArtifactError(f"결과 파일이 없습니다: {path.name}")
@@ -60,10 +64,10 @@ class Artifacts:
                 raise ArtifactError("32×32 PNG 파일이 아닙니다.")
             rgba = image.convert("RGBA")
             minimum, maximum = rgba.getchannel("A").getextrema()
-            if maximum == 0:
-                raise ArtifactError("내보낸 이미지가 완전히 투명합니다.")
-            if minimum != 0:
-                raise ArtifactError("투명 배경이 확인되지 않았습니다.")
+            if check_content and maximum == 0:
+                raise ImageContentError("내보낸 이미지가 완전히 투명합니다.")
+            if check_content and minimum != 0:
+                raise ImageContentError("투명 배경이 확인되지 않았습니다.")
             rgba.resize((256, 256), Image.Resampling.NEAREST).save(self.preview)
 
 
@@ -90,7 +94,7 @@ async def verify_document(mcp, sprite: str) -> None:
         raise ArtifactError("작업 문서가 32×32, 1프레임 명세를 벗어났습니다.")
 
 
-async def export_document(mcp, sprite: str, artifacts: Artifacts) -> None:
+async def export_document(mcp, sprite: str, artifacts: Artifacts, *, check_content: bool = True) -> None:
     await verify_document(mcp, sprite)
     await mcp.call("sprite_manage", {
         "op": "save_as", "sprite": sprite, "path": artifacts.source.as_posix(),
@@ -99,4 +103,4 @@ async def export_document(mcp, sprite: str, artifacts: Artifacts) -> None:
         "op": "png", "sprite": sprite, "frame": 1, "scale": 1,
         "trim": False, "path": artifacts.png.as_posix(),
     })
-    artifacts.validate_and_preview()
+    artifacts.validate_and_preview(check_content=check_content)
