@@ -1,0 +1,28 @@
+# Python / uv
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+build/
+dist/
+wheels/
+*.egg-info/
+
+# 인증 정보는 예시 파일만 추적합니다.
+.env
+.env.*
+!.env.example
+
+# 실행 결과와 로컬 상태
+outputs/
+data/
+*.log
+.coverage
+htmlcov/
+
+# 개발 문서
+/docs
+
+# 테스트 폴더
+/tests
