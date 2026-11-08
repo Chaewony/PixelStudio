@@ -97,8 +97,11 @@ def create_bot(settings: Settings) -> discord.Client:
                 if any(path.stat().st_size > interaction.filesize_limit for path in paths):
                     raise ValueError("Discord 첨부 파일 한도를 초과했습니다.")
                 files = [discord.File(path, filename=path.name) for path in paths]
+                display_prompt = discord.utils.escape_mentions(discord.utils.escape_markdown(prompt))
                 await interaction.edit_original_response(
-                    content=f"작업 완료 · `{job_id}`\n32×32 원본 PNG · 8배 미리보기 · Aseprite 원본",
+                    content=(f"작업 완료 · `{job_id}`\n"
+                             f"**요청 내용**\n{display_prompt}\n\n"
+                             "32×32 원본 PNG · 8배 미리보기 · Aseprite 원본"),
                     attachments=files,
                 )
             except (discord.HTTPException, OSError, ValueError):
